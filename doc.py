@@ -1,41 +1,19 @@
-# from collections import Counter, defaultdict
-# from math import log10
-# from typing import Dict, List, NamedTuple
-
-# from nltk.stem.snowball import SnowballStemmer
-# from nltk.tokenize import word_tokenize
-# import numpy as np
-# from numpy.linalg import norm
+from collections import Counter, defaultdict
+# defaultdict
+from math import log
+from nltk.stem.snowball import SnowballStemmer
+from nltk.tokenize import word_tokenize
+import numpy as np
+from numpy.linalg import norm
 # from sklearn.decomposition import TruncatedSVD
 # from sklearn.feature_extraction import DictVectorizer
-
-
-
-### File IO and processing
-
-class Document(NamedTuple):
-		doc_id: int
-		label: int
-		index: int
-		text: List[str]
-
-		def sections(self):
-				return [self.doc_id, self.label, self.text]
-
-		def __repr__(self):
-				return (f"doc_id: {self.doc_id}\n" +
-						f"  label: {self.label}\n" +
-						f"  index: {self.index}\n" +
-						f"  text: {self.text}\n")
-
-
-def read_stopwords(file):
-		with open(file) as f:
-				return set([x.strip() for x in f.readlines()])
-
-stopwords = read_stopwords('common_words')
-
+import nltk
+from nltk.corpus import stopwords
+nltk.download('stopwords')
+nltk.download('punkt')
+stop_words = set(stopwords.words('english'))
 stemmer = SnowballStemmer('english')
+
 
 def read_docs(file):
 		'''
@@ -80,43 +58,40 @@ def read_docsLR(file):
 		return docs
 
 
-def stem_doc(doc: Document):
-		return Document(doc.doc_id, doc.label, doc.index, list(map(stemmer.stem, doc.text)))
+def stem_doc(doc):
+		return list(map(stemmer.stem, doc))
 
-def stem_docs(docs: List[Document]):
+def stem_docs(docs):
 		return [stem_doc(doc) for doc in docs]
 
-def remove_stopwords_doc(doc: Document):
-		return Document(doc.doc_id, doc.label, doc.index, list(filter(lambda x: x not in stopwords, doc.text)))
+def remove_stopwords_doc(doc):
+		return list(filter(lambda x: x.lower() not in stop_words, doc))
 
-def remove_stopwords(docs: List[Document]):
+def remove_stopwords(docs):
 		return [remove_stopwords_doc(doc) for doc in docs]
 
 
 ### Term-Document Matrix
 
-class TermWeights(NamedTuple):
-		author: float
-		title: float
-		keyword: float
-		abstract: float
+# class TermWeights(NamedTuple):
+# 		author: float
+# 		title: float
+# 		keyword: float
+# 		abstract: float
 
-def compute_doc_freqs(docs: List[Document]):
+def compute_doc_freqs(docs):
 		'''
 		Computes document frequency, i.e. how many documents contain a specific word
 		'''
 		freq = Counter()
 		for doc in docs:
-				freq.update(set(doc.text))
+				freq.update(set(doc))
 		return freq
 
-def compute_tf(doc: Document):
+def compute_tf(doc):
 		vec = defaultdict(float)
-		for i in range(len(doc.text)):
-				if doc.index is None:
-						vec[doc.text[i]] += 1
-				elif i != doc.index:
-						vec[doc.text[i]] += 1
+		for i in range(len(doc)):
+			vec[doc[i]] += 1
 		return dict(vec)  # convert back to a regular dict
 
 
@@ -125,9 +100,9 @@ def compute_tfidf(doc, doc_freqs):
 		dic = {}
 		for word in tf:
 				if doc_freqs[word] == 0:
-						dic[word] = tf[word] * log10(len(doc_freqs) / 1)
+						dic[word] = tf[word] * log(len(doc_freqs) / 1)
 				else:
-						dic[word] = tf[word] * log10(len(doc_freqs) / doc_freqs[word])
+						dic[word] = tf[word] * log(len(doc_freqs) / doc_freqs[word])
 		return dic
 
 def compute_boolean(doc, doc_freqs, weights):
@@ -137,7 +112,7 @@ def compute_boolean(doc, doc_freqs, weights):
 
 
 ### Vector Similarity
-def dictdot(x: Dict[str, float], y: Dict[str, float]):
+def dictdot(x, y):
 		'''
 		Computes the dot product of vectors x and y, represented as sparse dictionaries.
 		'''
@@ -191,31 +166,6 @@ def precision_index(index, results, relevant) -> float:
 								return index / (results.index(doc)+1)
 		raise Exception('precision index error')
 
-def precision_at(recall: float, results: List[int], relevant: List[int]) -> float:
-		'''
-		This function should compute the precision at the specified recall level.
-		If the recall level is in between two points, you should do a linear interpolation
-		between the two closest points. For example, if you have 4 results
-		(recall 0.25, 0.5, 0.75, and 1.0), and you need to compute recall @ 0.6, then do something like
-
-		interpolate(0.5, prec @ 0.5, 0.75, prec @ 0.75, 0.6)
-
-		Note that there is implicitly a point (recall=0, precision=1).
-
-		`results` is a sorted list of document ids
-		`relevant` is a list of relevant documents
-		'''
-		from math import ceil, floor
-		l1 = floor(recall*len(relevant))
-		l2 = ceil(recall*len(relevant))
-		if l1 == l2:
-				return precision_index(l1, results, relevant)
-		if l1 == 0:
-				return interpolate(0, 1, l2/len(relevant), precision_index(l2, results, relevant), recall)
-
-		return interpolate(l1/len(relevant), precision_index(l1, results, relevant),
-										   l2/len(relevant), precision_index(l2, results, relevant), recall)
-
 def mean_precision1(results, relevant):
 		return (precision_at(0.25, results, relevant) +
 				precision_at(0.5, results, relevant) +
@@ -247,9 +197,9 @@ from sklearn.feature_extraction import DictVectorizer
 
 def similarity(a, b):
 	dv = DictVectorizer()
-	doc_vectors = process_docs([a+b])
+	doc_vectors = process_docs([a,b])
 	dv.fit([d for d in doc_vectors])
-	doc_vectors = np.concatenate([dv.transform(d).toarray() for d in doc_vectors])
+	# doc_vectors = np.concatenate([dv.transform(d).toarray() for d in doc_vectors])
 
 	# v1 = defaultdict(float)
 	# v2 = defaultdict(float)
@@ -264,21 +214,14 @@ def similarity(a, b):
 	# for k, v in v2.items():
 	#       v2[k] = v / len(doc_vectors)
 
-
-	docs2 = collocation(dataset + '-dev.tsv')
-	doc_vectors = process_docs(docs, stem, weighting)
-	doc_vectors = np.concatenate([dv.transform(d).toarray() for d in doc_vectors])
-
 	# for doc, vector in zip(docs, doc_vectors):
-			# sim1 = cosine_sim(vector, v1)
-			# sim2 = cosine_sim(vector, v2)
+	return cosine_sim(doc_vectors[0], doc_vectors[1])
 
 def process_docs(docs):
-		# if stop:
+		docs = list(map(word_tokenize, docs))
 		docs = remove_stopwords(docs)
 		docs = stem_docs(docs)
 
 		doc_freqs = compute_doc_freqs(docs)
-		# collocation?
 		vecs = [compute_tfidf(doc, doc_freqs) for doc in docs]
 		return vecs

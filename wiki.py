@@ -1,5 +1,6 @@
 import requests
 import json
+from queue import PriorityQueue
 
 def outgoing(article):
 	url = f'https://en.wikipedia.org/w/api.php?action=query&titles={article}&prop=links&pllimit=max&format=json&plnamespace=0'
@@ -39,6 +40,13 @@ def incoming(article):
 			
 	return links
 
+def get_text(article):
+	r = requests.get(f'https://en.wikipedia.org/w/api.php?action=query&format=json&titles={article}&prop=extracts&explaintext)')
+	for page in json.loads(r.text)['query']['pages'].values():
+		if 'extract' in page:
+			return page['extract']
+
+from doc import *
 
 print('Welcome to wiki bot')
 while True:
@@ -47,7 +55,7 @@ while True:
 	print('1. Query page')
 	print('2. Find path')
 	print('3. Similarity Score')
-	print('4. Find path by similarity')
+	print('4. Find by similarity')
 	print('5. Quit')
 	choice = input('> ')
 	print()
@@ -120,8 +128,47 @@ while True:
 			first = input('First article: ')
 			second = input('Second article: ')
 
+			d1 = get_text(first)
+			d2 = get_text(second)
+
+			print(similarity(d1, d2))
+
 		case 4:
-			pass
+			query = input('Query: ')
+			print()
+			print('Starting at wikipedia')
+
+			q = PriorityQueue()
+			seen = set()
+			q.put((0, 'Wikipedia'))
+			seen.add('Wikipedia')
+			path = []
+			last = -1
+
+			while True:
+				sim, s = q.get()
+				sim = -sim
+
+				if sim <= last:
+					break
+
+				last = sim
+				path.append(s)
+				print(f'{s}: {sim}')
+
+				for t in outgoing(s)[:16]:
+					if t in seen:
+						continue
+					seen.add(t)
+					# print(t)
+					text = get_text(t)
+					if text:
+						q.put((-similarity(query, text), t))
+				
+			print('Path:')
+			for p in path:
+				print(p, end=' -> ')
+			print('\b\b\b\b    ')
 
 		case 5:
 			exit()
